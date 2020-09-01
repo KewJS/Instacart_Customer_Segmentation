@@ -1,3 +1,12 @@
+<<<<<<< HEAD
+=======
+# Data
+data_local/
+
+# Settings
+.vscode/
+
+>>>>>>> initial commit
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

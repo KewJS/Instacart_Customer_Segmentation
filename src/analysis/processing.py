@@ -1,7 +1,6 @@
 import os, sys, fnmatch
 import pandas as pd
 import numpy as np
-import argparse
 from collections import OrderedDict
 from datetime import datetime
 
@@ -12,8 +11,8 @@ warnings.filterwarnings("ignore")
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 warnings.simplefilter("ignore")
 
-
-# from feature_engineer import Feature_Engineer as fe
+from src.analysis.statistical_analysis import Statistical_Anlysis as sa
+from src.analysis.feature_engineer import Feature_Engineer as fe
 
 FILE_PATH = r"D:\03-Training\Digital\03-SelfLearning\29-Customer_Segmentation\data_local"
 QDEBUG = True

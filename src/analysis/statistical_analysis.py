@@ -20,6 +20,8 @@ from statsmodels.formula.api import ols
 from src.Config import Config
 
 
+LEVENE_DISTRIBUTION = "Mean"
+
 class Logger(object):
     info = print
     critical = print
@@ -29,7 +31,7 @@ class Logger(object):
 
 
 class Statistic_Analysis(Config):
-    def __init__(self, strings=None, suffix='', logger=Logger(), y_var='SAND_COUNT'):
+    def __init__(self, strings=None, suffix='', logger=Logger(), y_var='Sales'):
         self.logger = logger
         self.suffix = suffix
         self.strings = strings
@@ -193,7 +195,7 @@ d
         return sample_statistics
 
     
-    def levene_test(self, data, center="Mean", var=None):
+    def levene_test(self, data, center=LEVENE_DISTRIBUTION, var=None):
         """Check for homogeneity of variance between groups
 
         Levene's test is a statistical procedure for testing equality of variances (also sometimes called homoscedasticity or homogeneity of variances)  

@@ -12,6 +12,9 @@ __current_module__ = inspect.getfile(inspect.currentframe()).replace("__main__",
 __path__ = os.path.dirname(sys.executable) if getattr(sys, "frozen", False) else os.path.dirname(__file__)
 
 
+def main():
+    
+
 class Parse(object):
 
     def __init__(self):

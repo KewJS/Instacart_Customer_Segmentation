@@ -58,9 +58,9 @@ class Analysis(Config):
         selected_vars = []
         for t in var_type:
             for d in Config.VARS[t]:
-                if qpredictive and d.get("predictive", False):
-                    pass
-                elif len(wc_vars) != 0:
+                if qpredictive and d.get("predictive"):
+                    continue
+                if len(wc_vars) != 0:
                     selected_vars.extend(fnmatch.filter(wc_vars, d['var']))
                 else:
                     selected_vars.append(d['var'])

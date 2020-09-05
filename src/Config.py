@@ -17,7 +17,7 @@ class Config(object):
 
     FILES = dict(
         DATA_LOCAL      = "data_local",
-        OUTPUT_PATH     = "processed_data",
+        OUTPUT_PATH     = r"D:\03-Training\Digital\03-SelfLearning\29-Customer_Segmentation\data_local\processed_data",
         CUSTOMER_DATA   = "customer_data",
         TRAIN_DATA      = "train_data",
     )

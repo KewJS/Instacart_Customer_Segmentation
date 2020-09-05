@@ -17,11 +17,6 @@ from src.Config import Config
 # from src.analysis.statistical_analysis import Statistical_Anlysis as sa
 # from src.analysis.feature_engineer import Feature_Engineer as fe
 
-# QDEBUG = True
-# FILES_TYPE = "single"
-# FILE_PATH = r"D:\03-Training\Digital\03-SelfLearning\29-Customer_Segmentation\data_local"
-# OUTPUT_PATH = r"D:\03-Training\Digital\03-SelfLearning\29-Customer_Segmentation\data_local\processed_data"
-
 class Logger(object):
     info     = print
     warning  = print
@@ -40,31 +35,47 @@ class Analysis(Config):
 
     
     @staticmethod
-    def vars(var_type=None, wc_vars=[], qpredictive=False):
-        """Return a list of variable names
+    def vars(types=[], wc_vars=[], qreturn_dict=False):
+        """ Return list of variable names
+        
+        Acquire the right features from dataframe to be input into model.  
+        Featurs will be acquired based the value "predictive" in the VARS dictionary. 
 
         Parameters
         ----------
-        var_type : [type]
-            Group of features, by default None
-        wc_vars : list, optional
-            [description], by default []
-        qpredictive : bool, optional
-            [description], by default False
-        """
-        if var_type == None:
-            var_type = [V for V in Config.VARS]
+        types : str
+            VARS name on type of features
         
+        Returns
+        -------
+        Features with predictive == True in self.VARS
+        """
+        if types==None:
+            types = [V for V in Config.VARS]
         selected_vars = []
-        for t in var_type:
+        for t in types:
             for d in Config.VARS[t]:
-                if qpredictive and d.get("predictive"):
+                if not d.get('predictive'):
                     continue
-                if len(wc_vars) != 0:
-                    selected_vars.extend(fnmatch.filter(wc_vars, d['var']))
+                if len(wc_vars) != 0: 
+                    matched_vars = fnmatch.filter(wc_vars, d['var'])
+                    if qreturn_dict:
+                        for v in matched_vars:
+                            dd = d.copy()
+                            dd['var'] = v 
+                            if not dd in selected_vars:
+                                selected_vars.append(dd)
+                    else:
+                        for v in matched_vars:
+                            if not v in selected_vars:
+                                selected_vars.append(v)
                 else:
-                    selected_vars.append(d['var'])
-        return list(set(selected_vars))
+                    if qreturn_dict and not d in selected_vars:
+                        selected_vars.append(d)
+                    else:
+                        if not d['var'] in selected_vars:
+                            selected_vars.append(d['var'])
+        return selected_vars
 
     
     def read_file(self, fname, source_type=Config.ANALYSIS_CONFIG["FILE_TYPE"]):
@@ -142,9 +153,17 @@ class Analysis(Config):
         self.data["data_correlation_df"] = self.data["customer_data"][self.vars(["Customer"], self.data["customer_data"].columns)]
 
         if self.QDEBUG:
-            fname = os.path.join(self.FILES["OUTPUT_PATH"], "customer_data{}.csv".format(self.suffix))
+            fname = os.path.join(self.FILES["OUTPUT_PATH"], "{}{}.csv".format(self.FILES["CUSTOMER_DATA"], self.suffix))
+            self.data["customer_data"].to_csv(fname)
 
         # self.data["train_data"].to_csv(OUTPUT_PATH, "train_data_{}.csv".format(self.suffix))
         self.logger.info("done.")
 
 
+def main():
+    analysis = Analysis()
+    analysis.get_data()
+
+
+if __name__ == "__main__":
+    main()

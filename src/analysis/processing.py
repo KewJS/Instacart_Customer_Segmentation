@@ -5,7 +5,15 @@ import argparse
 from collections import OrderedDict
 from datetime import datetime
 
+from IPython.display import display, Markdown, HTML, clear_output, display_html
+
 import matplotlib
+import hvplot
+import hvplot.pandas
+import holoviews as hv
+from holoviews import opts
+import panel as pn
+ 
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -158,6 +166,53 @@ class Analysis(Config):
 
         # self.data["train_data"].to_csv(OUTPUT_PATH, "train_data_{}.csv".format(self.suffix))
         self.logger.info("done.")
+
+
+    # # Data Processing
+    def descriptive_data(self, df):
+        descriptive_info = {"Number of User ID: ": df["user_id"].nunique(),
+                            "No. of Variables: ": int(len(df.columns)),
+                            "No. of Observations: ": int(df.shape[0]),
+                            }
+        descriptive_df = pd.DataFrame(descriptive_info.items(), columns=["Descriptions", "Values"]).set_index("Descriptions")
+        descriptive_df.columns.names = ["Data Statistics"]
+        return descriptive_df
+
+    
+    def data_type_analysis(self, df):
+        categorical_df = pd.DataFrame(df.reset_index(inplace=False).dtypes.value_counts())
+        categorical_df.reset_index(inplace=True)
+
+        categorical_df = categorical_df.rename(columns={"index": "Types", 0:"Values"})
+        categorical_df["Types"] = categorical_df["Types"].astype(str)
+        categorical_df = categorical_df.set_index("Types")
+        categorical_df.columns.names = ["Variables"]
+
+        return categorical_df
+
+
+    def grid_df_display(self, list_dfs, rows=1, cols=2, fill='cols'):
+        html_table = "<table style = 'width: 100%; border: 0px'> {content} </table>"
+        html_row = "<tr style = 'border:0px'> {content} </tr>"
+        html_cell = "<td style='width: {width}%; vertical-align: top; border: 0px'> {{content}} </td>"
+        html_cell = html_cell.format(width=8000)
+
+        cells = [ html_cell.format(content=df.to_html()) for df in list_dfs[:rows*cols] ]
+        cells += cols * [html_cell.format(content="")]
+
+        if fill == 'rows':
+            grid = [ html_row.format(content="".join(cells[i: i+cols])) for i in range(0,rows*cols, cols)]
+
+        if fill == 'cols': 
+            grid = [ html_row.format(content="".join(cells[i: rows*cols:rows])) for i in range(0,rows)]
+            
+        dfs = display(HTML(html_table.format(content="".join(grid))))
+        return dfs
+
+    
+    def holoview_table(self, df, column, width, height):
+        table = df.hvplot.table(columns=column, width=width, height=height)
+        return table
 
 
 def main():

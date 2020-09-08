@@ -8,7 +8,7 @@ base_path, currentdir = os.path.split(os.path.dirname(inspect.getfile(inspect.cu
 
 class Config(object):
 
-    QDEBUG = True
+    QDEBUG = False
 
     NAME = dict(
         full = "Customer Segmentation",
@@ -41,9 +41,9 @@ class Config(object):
 
     VARS = OrderedDict(
         Customer = [
-            dict(var="user_id",                 min=1,      max=206209 ,    impute="",      predictive=False),
-            dict(var="order_id",                min=0,      max=3421083,    impute="",      predictive=False),
-            dict(var="product_id",              min=1,      max=49688  ,    impute="",      predictive=False),
+            dict(var="user_id",                 min=1,      max=206209 ,    impute="",      predictive=True ),
+            dict(var="order_id",                min=0,      max=3421083,    impute="",      predictive=True ),
+            dict(var="product_id",              min=1,      max=49688  ,    impute="",      predictive=True ),
             dict(var="add_to_cart_order",       min=1,      max=145    ,    impute="",      predictive=True ),
             dict(var="reordered",               min=0,      max=1      ,    impute="",      predictive=True ),
             dict(var="order_number",            min=1,      max=99     ,    impute="",      predictive=True ),

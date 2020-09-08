@@ -2,7 +2,7 @@
     "git.autofetch": true,
     "diffEditor.ignoreTrimWhitespace": true,
     "terminal.integrated.shell.windows": "C:\\windows\\System32\\cmd.exe",
-    "window.zoomLevel": 0,
+    "window.zoomLevel": 1,
     "editor.suggestSelection": "first",
     "vsintellicode.modify.editor.suggestSelection": "automaticallyOverrodeDefaultValue",
     "python.jediEnabled": false,

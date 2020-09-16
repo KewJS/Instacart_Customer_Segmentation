@@ -2,7 +2,7 @@
 
 <!-- TABLE OF CONTENTS -->
 ## Table of Contents
-* [About the Project - Instacart Kaggle Challenges](#https://www.kaggle.com/c/instacart-market-basket-analysis)
+* [About the Project - Instacart Kaggle Challenges](https://www.kaggle.com/c/instacart-market-basket-analysis)
 * **Getting Started**
 
 [Instacart Kaggle Challenges](https://www.kaggle.com/c/instacart-market-basket-analysis)

@@ -4,5 +4,5 @@
 <!-- TABLE OF CONTENTS -->
 ## Table of Contents
 * **About the Project**
-  - Its [Instacart Kaggle Challenges](https://www.kaggle.com/c/instacart-market-basket-analysis) 
+  - Its [Instacart Kaggle Challenges](https://www.kaggle.com/c/instacart-market-basket-analysis) focusing on 
 * **Getting Started**

@@ -1,7 +1,7 @@
 # Customer_Segmentation
 <p align="center"><img width="1000" height="300" src="https://miro.medium.com/max/1160/1*yf7Bk7LpZCH5wcIGSxBqjA.png"></p>
 
-Its [Instacart Kaggle Challenges](https://www.kaggle.com/c/instacart-market-basket-analysis) coming from <b>Instacart</b>, with the big plan on creating a delightful shopping experience. With this transaction data with <font color='blue'>3 Million Instacart Orders</font>, we would crunch the data and extract right insight on customers, so that we can build a better shopping experience for customers in **Instacart**.
+This project initiated from **Instacart** providing e-commerce shopping, with the big plan on creating a delightful shopping experience. With this transaction data with <font color='blue'>3 Million Instacart Orders</font>, we would crunch the data and extract right insight on customers, so that we can build a better shopping experience for customers in **Instacart**.
 
 [Instacart Kaggle Challenges](https://www.kaggle.com/c/instacart-market-basket-analysis)
 

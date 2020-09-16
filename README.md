@@ -74,8 +74,10 @@ pip install -r requirement.txt
 ## 4. Open your Jupyter notebook
 
 1. You will have to install a new IPython kernelspec if you created a new conda environment with `environment.yml`.
-
+    
+    ```python
     python -m ipykernel install --user --name customer_segmentation --display-name "customer_segmentation"
+    ```
 
 You can change the `--display-name` to anything you want, though if you leave it out, the kernel's display name will default to the value passed to the `--name` flag.
 

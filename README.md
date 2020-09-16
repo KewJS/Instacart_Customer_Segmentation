@@ -19,9 +19,11 @@ With this transaction data with <font color='blue'>3 Million Instacart Orders</f
 - Prefer to use the `conda` package manager (which ships with the Anaconda distribution of Python),
   1. Clone the repository locally
     In your terminal, use `git` to clone the repository locally.
+    
     ```bash
-    git clone https://github.com/ericmjl/bayesian-stats-modelling-tutorial
+    https://github.com/KewJS/Customer_Segmentation.git
     ```
+    
     Alternatively, you can download the zip file of the repository at the top of the main page of the repository. 
     If you prefer not to use git or don't have experience with it, this a good option.
     

@@ -15,6 +15,7 @@ Its [Instacart Kaggle Challenges](https://www.kaggle.com/c/instacart-market-bask
   
 With this transaction data with <font color='blue'>3 Million Instacart Orders</font>, let kick started on it!
   
+
 ## 2. Getting Started
 - Prefer to use the `conda` package manager (which ships with the Anaconda distribution of Python),
   1. Clone the repository locally
@@ -28,6 +29,7 @@ With this transaction data with <font color='blue'>3 Million Instacart Orders</f
     If you prefer not to use git or don't have experience with it, this a good option.
     
 - Prefer to use `pipenv`, which is a package authored by Kenneth Reitz for package management with `pip` and `virtualenv`, or
+
 
 ## 3. Set up your environment
 

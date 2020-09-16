@@ -8,12 +8,22 @@ from datetime import datetime
 from IPython.display import display, Markdown, HTML, clear_output, display_html
 
 import matplotlib
+import matplotlib.pyplot as plt
+from termcolor import colored
+import seaborn as sns
+sns.set_context('talk')
+sns.set_style('white')
+
 import hvplot
 import hvplot.pandas
 import holoviews as hv
 from holoviews import opts
 import panel as pn
  
+from bokeh.plotting import figure
+from bokeh.io import output_notebook, show, output_file
+from bokeh.models import ColumnDataSource, HoverTool, Panel
+from bokeh.models.widgets import Tabs
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -21,9 +31,8 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 warnings.simplefilter("ignore")
 
 from src.Config import Config
-
+from src.analysis.feature_engineer import Feature_Engineer as fe
 # from src.analysis.statistical_analysis import Statistical_Anlysis as sa
-# from src.analysis.feature_engineer import Feature_Engineer as fe
 
 class Logger(object):
     info     = print
@@ -32,7 +41,7 @@ class Logger(object):
     critical = print
 
 
-class Analysis(Config):
+class Analysis(Feature_Engineer):
 
     data = {}
 
@@ -154,8 +163,30 @@ class Analysis(Config):
         self.logger.info("     on Customer Orders & Departments:")
         self.data["customer_data"] = pd.merge(self.data["customer_data"], self.data["departments_df"], on=["department_id"], how="left")
 
-        self.logger.info("  Renaming Columns ...")
+        self.logger.info("    Renaming Columns ...")
         self.data["customer_data"] = self.data["customer_data"].rename(columns=self.COLUMN_RENAME["CUSTOMER"])
+
+        self.logger.info("  Creating feature engineering ...")
+        self.data["customer_data"]["peak_day"] = self.data['customer_data']['order_day_of_week'].apply(lambda x: self.peak_day_assignment(x))
+
+        self.logger.info("    Creating number of products ordered across each days ...")
+        self.data['prod_count_day_df'] = pd.DataFrame(self.data['customer_data'].groupby(['order_id', 'order_day_of_week']).count()['product_id'])
+        self.data['prod_count_day_df'] = self.data['prod_count_day_df'].reset_index()
+        self.data['prod_count_day_df'] = self.data['prod_count_day_df'].rename(columns={"product_id": "ordered_number"})
+        self.data["prod_count_day_df"]["peak_day"] = self.data['prod_count_day_df']['order_day_of_week'].apply(lambda x: self.peak_day_assignment(x))
+
+        if self.QDEBUG:
+            fname = os.path.join(self.FILES["OUTPUT_PATH"], "{}{}.csv".format(self.FILES["PROD_COUNT_DAY"], self.suffix))
+            self.data["prod_count_day_df"].to_csv(fname)
+
+        self.logger.info("    Creating number of products ordered across each hours ...")
+        self.data['prod_count_hour_df'] = pd.DataFrame(self.data['customer_data'].groupby(['order_id', 'order_hour_of_day']).count()['product_id'])
+        self.data['prod_count_hour_df'] = self.data['prod_count_hour_df'].reset_index()
+        self.data['prod_count_hour_df'] = self.data['prod_count_hour_df'].rename(columns={"product_id": "ordered_number"})
+
+        if self.QDEBUG:
+            fname = os.path.join(self.FILES["OUTPUT_PATH"], "{}{}.csv".format(self.FILES["PROD_COUNT_HOUR"], self.suffix))
+            self.data["prod_count_hour_df"].to_csv(fname)
 
         self.logger.info("  Generating data correlation dataframe for feature dependency ...")
         self.data["data_correlation_df"] = self.data["customer_data"][self.vars(["Customer"], self.data["customer_data"].columns)]
@@ -210,9 +241,145 @@ class Analysis(Config):
         return dfs
 
     
+    # # holoviews
     def holoview_table(self, df, column, width, height):
         table = df.hvplot.table(columns=column, width=width, height=height)
         return table
+
+    
+    def histogram_plot_hv(self, df, title, var, bin_size=30, height=400, width=1000):
+        frequencies, edges = np.histogram(df.dropna()[var], bins=bin_size)
+        fig = hv.Histogram((edges, frequencies), label=title).opts(fontsize={'title': 16, 'labels': 12, 'xticks': 10, 'yticks': 10}, height=height, width=width, fill_color="#34495e")
+        
+        return fig
+
+
+    # # bokeh
+    def hist_hover(self, df, column, colors=["#34495e", "Tan"], bins=30, log_scale=False, show_plot=True):
+        hist, edges = np.histogram(df.dropna()[column], bins = bins)
+        hist_df = pd.DataFrame({column: hist,
+                                "left": edges[:-1],
+                                "right": edges[1:]})
+        hist_df["interval"] = ["%d to %d" % (left, right) for left, 
+                                right in zip(hist_df["left"], hist_df["right"])]
+
+        if log_scale == True:
+            hist_df["log"] = np.log(hist_df[column])
+            src = ColumnDataSource(hist_df)
+            plot = figure(plot_height = 400, plot_width = 1000,
+                        title = "Histogram of {}".format(column.capitalize()),
+                        x_axis_label = column.capitalize(),
+                        y_axis_label = "Log Count")    
+            plot.quad(bottom = 0, top = "log",left = "left", 
+                    right = "right", source = src, fill_color = "#34495e", 
+                    line_color = "black", fill_alpha = 0.7,
+                    hover_fill_alpha = 1.0, hover_fill_color = colors[1])
+        else:
+            src = ColumnDataSource(hist_df)
+            plot = figure(plot_height = 400, plot_width = 1000,
+                        title = "Histogram of {}".format(column.capitalize()),
+                        x_axis_label = column.capitalize(),
+                        y_axis_label = "Count")    
+            plot.quad(bottom = 0, top = column,left = "left", 
+                    right = "right", source = src, fill_color = "#34495e", 
+                    line_color = "black", fill_alpha = 0.7,
+                    hover_fill_alpha = 1.0, hover_fill_color = colors[1])
+        
+        hover = HoverTool(tooltips = [('Interval', '@interval'),
+                                ('Count', str("@" + column))])
+        plot.add_tools(hover)
+        
+        if show_plot == True:
+            show(plot)
+        else:
+            return plot
+        
+
+    def histotabs(self, df, features, log_scale=False, show_plot=False):
+        hists = []
+        for f in features:
+            h = self.hist_hover(df, f, log_scale=log_scale, show_plot=show_plot)
+            p = Panel(child=h, title=f.capitalize())
+            hists.append(p)
+        t = Tabs(tabs=hists)
+        show(t)
+
+
+    def filtered_histotabs(self, df, feature, filter_feature, log_scale=False, show_plot=False):
+        hists = []
+        for col in df[filter_feature].unique():
+            sub_df = df[df[filter_feature] == col]
+            histo = self.hist_hover(sub_df, feature, log_scale=log_scale, show_plot=show_plot)
+            p = Panel(child = histo, title=col)
+            hists.append(p)
+        t = Tabs(tabs=hists)
+        show(t)
+
+    
+    # # matplotlib 
+    def histogram_plot(self, df, title, var, xlabel, ylabel, bin_size=100, count=False):
+        fig = plt.figure(figsize=(19,5))
+        plt.suptitle(title, y=1, fontsize=18, weight='bold')
+        
+        if count:
+            fig = plt.hist(df[var].value_counts(), bins=bin_size, color='#34495e')
+            mean = plt.axvline(df[var].value_counts().mean(), color='orange', 
+                    linestyle='--', label='Mean')
+            median = plt.axvline(df[var].value_counts().median(), color='darkgreen', 
+                        linestyle='--', label='Median')
+        else:
+            fig = plt.hist(df[var], bins=bin_size, color='#34495e')
+            mean = plt.axvline(df[var].mean(), color='orange', 
+                    linestyle='--', label='Mean')
+            median = plt.axvline(df[var].median(), color='darkgreen', 
+                        linestyle='--', label='Median')
+
+        plt.title('Mean: {:.2f};    Median: {:.2f}'.format(df[var].value_counts().mean(), df[var].value_counts().median()))
+        plt.xlabel(xlabel, weight='bold')
+        plt.ylabel(ylabel, weight='bold')
+        plt.legend(fontsize=13)
+        sns.despine()
+        plt.show()
+        
+        return fig
+
+    
+    def boxplot_plot_days(self, df, x_var, y_var, xlabel=None, ylabel=None, title=None):
+        fig = plt.figure(figsize=(12, 8))
+        fig = sns.boxplot(df[x_var], df[y_var], orient='h', color='#34495e')
+        plt.yticks(range(7), [self.ANALYSIS_CONFIG["DAYS_ASSIGNED"][n] for n in range(7)])
+        plt.xticks([0, 5, 10, 15, 20], [0, 5, 10, 15, 20])
+        plt.xlabel(xlabel)
+        plt.ylabel(ylabel)
+        plt.title(title)
+        sns.despine()
+        plt.show()
+    
+        return fig
+
+    
+    def violin_plot_hours(self, df, x_var, y_var, xlabel=None, ylabel=None, title=None):
+        fig = plt.figure(figsize=(12, 8))
+        fig = sns.violinplot(df[x_var], df[y_var], orient='h', color='#34495e')
+        plt.yticks(range(24), [n for n in range(24)])
+        plt.xlabel(xlabel)
+        plt.ylabel(ylabel)
+        plt.title(title)
+        sns.despine()
+        plt.show()
+    
+        return fig
+
+    
+    # # seaborn
+    def count_plot(self, df, var, xlabel, title):
+        fig, ax = plt.subplots()
+        fig.set_size_inches(20,5)
+
+        sns.countplot(color="#34495e", data=df, x=var, ax=ax)
+        ax.set(xlabel=xlabel, title=title)
+        
+        return fig
 
 
 def main():

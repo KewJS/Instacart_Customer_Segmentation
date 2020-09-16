@@ -19,11 +19,16 @@ class Config(object):
         DATA_LOCAL      = "data_local",
         OUTPUT_PATH     = r"D:\03-Training\Digital\03-SelfLearning\29-Customer_Segmentation\data_local\processed_data",
         CUSTOMER_DATA   = "customer_data",
+        PROD_COUNT_DAY  = "order_count_day_data",
+        PROD_COUNT_HOUR = "order_count_hour_data",
         TRAIN_DATA      = "train_data",
     )
 
     ANALYSIS_CONFIG = dict(
-        FILE_TYPE       = "single",
+        FILE_TYPE           = "single",
+        DAYS_ASSIGNED       = {0:'Sun', 1:'Mon', 2:'Tue', 3:'Wed', 4:'Thu', 5:'Fri', 6:'Sat'},
+        LEVENE_DISTRIBUTION = "Mean",
+
     )
 
     MODELLING_CONFIG = dict(

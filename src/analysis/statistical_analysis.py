@@ -19,15 +19,12 @@ from statsmodels.formula.api import ols
 
 from src.Config import Config
 
-
-LEVENE_DISTRIBUTION = "Mean"
-
 class Logger(object):
-    info = print
-    critical = print
-    error = print
-    warning = print
-    debug = print
+    info        = print
+    critical    = print
+    error       = print
+    warning     = print
+    debug       = print
 
 
 class Statistic_Analysis(Config):

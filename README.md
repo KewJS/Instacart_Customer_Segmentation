@@ -1,6 +1,10 @@
 # Customer_Segmentation
 <p align="center"><img width="1000" height="300" src="https://miro.medium.com/max/1160/1*yf7Bk7LpZCH5wcIGSxBqjA.png"></p>
 
+Its [Instacart Kaggle Challenges](https://www.kaggle.com/c/instacart-market-basket-analysis) coming from <b>Instacart</b>, with the big plan on creating a delightful shopping experience. With this transaction data with <font color='blue'>3 Million Instacart Orders</font>, we would crunch the data and extract right insight on customers, so that we can build a better shopping experience for customers in **Instacart**.
+
+[Instacart Kaggle Challenges](https://www.kaggle.com/c/instacart-market-basket-analysis)
+
 ## Table of Contents
 * **1. About the Project**
 * **2. Getting Started**
@@ -8,16 +12,41 @@
 * **4. Open your Jupyter notebook**
 
 
-## 1. About the Project
-Its [Instacart Kaggle Challenges](https://www.kaggle.com/c/instacart-market-basket-analysis) coming from <b>Instacart</b>, with the big plan on creating a delightful shopping experience. With the transactional data provided, we can perform: 
+## Structuring a repository
+An integral part of having reusable code is having a sensible repository structure. That is, which files do we have and how do we organise them.
+- Folder layout:
+```bash
+project_name
+├── docs
+│   ├── make.bat
+│   ├── Makefile
+│   └── source
+│       ├── conf.py
+│       └── index.rst
+├── src
+│   └── analysis
+│       └── __init__.py
+|       └── feature_engineer.py
+|       └── statistical_analysis.py
+|   └── train
+│       └── __init__.py
+|       └── Model.py
+|   └── Config.py
+├── .gitignore
+├── README.md
+├── requirements.txt
+├── setup.py
+└── tox.ini
+```
 
+
+## 1. About the Project
+With this transaction data with <font color='blue'>3 Million Instacart Orders</font>, let kick started on it:
   - <b><u>RFM (Recency, Frequency, Monetory)</u></b>
   - <b><u>Market Basket Analysis</u></b>
   - <b><u>Association Rule</u></b>
   - <b><u>Customer Segmentation (unsupervised learning)</u></b>
   - <b><u>Prediction of Next Product on User will Buy</u></b>
-  
-With this transaction data with <font color='blue'>3 Million Instacart Orders</font>, let kick started on it!
   
 
 ## 2. Getting Started

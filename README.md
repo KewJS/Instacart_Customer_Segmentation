@@ -6,5 +6,3 @@
 * **About the Project**
   - Its [Instacart Kaggle Challenges](https://www.kaggle.com/c/instacart-market-basket-analysis) 
 * **Getting Started**
-
-[Instacart Kaggle Challenges](https://www.kaggle.com/c/instacart-market-basket-analysis)

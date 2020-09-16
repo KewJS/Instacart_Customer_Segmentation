@@ -16,7 +16,7 @@ This project initiated from **Instacart** providing e-commerce shopping, with th
 An integral part of having reusable code is having a sensible repository structure. That is, which files do we have and how do we organise them.
 - Folder layout:
 ```bash
-project_name
+customer_segmentation
 ├── docs
 │   ├── make.bat
 │   ├── Makefile

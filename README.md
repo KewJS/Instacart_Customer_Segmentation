@@ -2,6 +2,10 @@
 <p align="center"><img width="1000" height="300" src="https://miro.medium.com/max/1160/1*yf7Bk7LpZCH5wcIGSxBqjA.png"></p>
 
 ## Table of Contents
+* **1. About the Project**
+* **2. Getting Started**
+* **3. Set up your environment**
+* **4. Open your Jupyter notebook**
 
 
 ## 1. About the Project
@@ -70,6 +74,7 @@ An example command would be:
 ```bash
 pip install -r requirement.txt
 ```
+
 
 ## 4. Open your Jupyter notebook
 

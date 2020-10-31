@@ -1,0 +1,254 @@
+{# S, C, M, O, table, np, pd #}
+{% set DAY_OF_WEEK = DAY_OF_WEEK or 'Days of Week' %}
+{% set PRODUCT_CASE = PRODUCT_CASE or "Overview" %}
+{# {% set PRODUCT_GROUPS = PRODUCT_GROUPS or [{'title': 'dairy eggs'}, {'title': 'produce'}, {'title': 'pantry'},
+                                           {'title': 'meat seafood'}, {'title': 'bakery'}, {'title': 'personal care'},
+                                           {'title': 'snacks'}, {'title': 'breakfast'}, {'title': 'beverages'},
+                                           {'title': 'deli'}, {'title': 'household'}, {'title': 'international'},
+                                           {'title': 'dry goods pasta'}, {'title': 'frozen'}, {'title': 'canned goods'},
+                                           {'title': 'babies'}, {'title': 'pets'}, {'title': 'alcohol'},
+                                           {'title': 'bulk'}, {'title': 'missing'}, {'title': 'other'}] %} #}
+{% set PRODUCT_GROUPS = PRODUCT_GROUPS or ['dairy eggs', 'produce', 'pantry', 'meat seafood', 'bakery', 'personal care', 
+                                           'snacks', 'breakfast', 'beverages', 'deli', 'household', 'international',
+                                           'dry goods pasta', 'frozen', 'canned goods', 'babies', 'pets', 'alcohol',
+                                           'bulk', 'missing', 'other'] %}
+{% set LEGEND_DOMAIN = LEGEND_DOMAIN or [10, 100, 1000, np.inf] %}     
+{% set WIDTH_REGION, WIDTH_STRIP = 120, 140 %}
+{% set STRIP_WIDTH = (WIDTH_REGION // table.shape[1] + 1) %}
+{% set TOPLINKS = TOPLINKS or [{'title': 'All', 'href': '../instacart-overview/'}, {'title': 'dairy eggs', 'href': '../instacart-overview-de/'}, 
+                               {'title': 'produce', 'href': '../instacart-overview-produce/'}, {'title': 'pantry', 'href': '../instacart-overview-pantry/'},
+                               {'title': 'meat seafood', 'href': '../instacart-overview-ms/'}, {'title': 'bakery', 'href': '../instacart-overview-bakery/'}, 
+                               {'title': 'personal care', 'href': '../instacart-overview-pc/'}, {'title': 'snacks', 'href': '../instacart-overview-snacks/'}, 
+                               {'title': 'breakfast', 'href': '../instacart-overview-breakfast/'}, {'title': 'beverages', 'href': '../instacart-overview-beverages/'},
+                               {'title': 'deli', 'href': '../instacart-overview-deli/'}, {'title': 'household', 'href': '../instacart-overview-pantry/'}, 
+                               {'title': 'international', 'href': '../instacart-overview-international/'}, {'title': 'dry goods pasta', 'href': '../instacart-overview-dgp/'}, 
+                               {'title': 'frozen', 'href': '../instacart-overview-frozen/'}, {'title': 'canned goods', 'href': '../instacart-overview-cg/'},
+                               {'title': 'babies', 'href': '../instacart-overview-babies/'}, {'title': 'pets', 'href': '../instacart-overview-pets/'}, 
+                               {'title': 'alcohol', 'href': '../instacart-overview-alcohol/'}, {'title': 'bulk', 'href': '../instacart-overview-bulk/'}, 
+                               {'title': 'missing', 'href': '../instacart-overview-missing/'}, {'title': 'other', 'href': '../instacart-overview-other/'}] %}
+
+{% macro banner() -%}
+=========================================================
+| Data acquired from Kaggle Insta-Cart Challenge.       |
+| The dataframe displayed here do not contains all the  |
+| columns provided in raw data. Certain data processing |
+| is applied to focus on understanding number of orders | 
+| from users and also how each product group performs.  |
+=========================================================
+{%- endmacro %}
+
+{% macro kpi(name, num) -%}
+  <div class="kpi">
+      <div class="kname">{{ name }}</div>
+      {# <div class="num">{{ '{0:,.0f}'.format(num) }}</div> #}
+      <div class="num">{{ num }}</div>
+  </div>
+{%- endmacro %}
+
+{% macro kpiblocksm(product) -%}
+  <div class="kpi-sm">
+    <div class="kpi-hed">{{ product }}</div>
+    <div class="d-flex kpi-box">
+      {{ kpi(name='No. of Orders', num=S[product]) }}
+      {{ kpi(name='Mean of Peak Time', num=M[product]) }}
+    </div>
+  </div>
+{%- endmacro %}
+
+{% macro toplinks() -%}
+  <div class="text-center toplinksgithub">
+    {% for link in TOPLINKS %}<a href="{{ link['href'] }}">{{ link['title'] }}</a>{% endfor %}
+  </div>
+{%- endmacro %}
+
+<div class="overview">
+  <div>
+    <div class="kpi-hed text-center">{{ PRODUCT_CASE }}</div>
+    <div class="d-flex kpi-box">
+      {{ kpi(name='No. Of Users', num=O['Number of Users']) }}
+      {{ kpi(name='No. of Orders', num=O['Number of Orders']) }}
+    </div>
+  </div>
+
+  <p class="text-center text-uppercase fs9">Random sampling of {{ O['Number of Users'] }} users are selected from customer for analysis including <code>EDA</code>, <code>Statistical Analysis</code> & <code>Interpretation</code></p>
+
+  <div class="d-flex" style="justify-content:space-between;">
+    {% for products in PRODUCT_GROUPS %}
+    {{ kpiblocksm(products) }}
+    {% endfor %}
+  </div>
+
+  <table class="table" style="width:575px;">
+    <thead>
+      <tr>
+        <th class="text-right" style="width:{{ WIDTH_REGION }}px;">User ID</th>
+        <th class="text-right" style="width:{{ WIDTH_STRIP }}px;">No. Of Orders</th>
+        <th class="text-right" style="width:{{ WIDTH_STRIP }}px;">No. Of Products</th>
+        <th class="text-right" style="width:{{ WIDTH_STRIP }}px;">Peak Order Day (Mean)</th>
+        <th class="text-right" style="width:{{ WIDTH_STRIP }}px;">Peak Order Time (Mean)</th>
+        <th class="text-right" style="width:{{ WIDTH_STRIP }}px;">Days Since Last Order (Mean)</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for index, row in table.iterrows() %}
+      <tr>
+        <td class="mw"><b>{{ row['user_id'] }}</b></td>
+        <td class="pl1"><b>{{ '{0:,.0f}'.format(row['num_of_order']) }}</b></td>
+        <td class="pl1"><b>{{ '{0:,.0f}'.format(row['num_of_products']) }}</b></td>
+        <td class="pl1"><b>{{ '{0:,.0f}'.format(row['peak_order_day_mean']) }}</b></td>
+        <td class="pl1"><b>{{ '{0:,.0f}'.format(row['peak_order_time_mean']) }}</b></td>
+        <td class="pl1"><b>{{ '{0:,.0f}'.format(row['days_since_last_orders_mean']) }}</b></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<style>
+.overview {
+  min-width: 500px;
+  font-size: 114px;
+  font-family: "Segoe UI", SegoeUI, Roboto, "Segoe WP", "Helvetica Neue", "Helvetica", "Tahoma", "Arial", sans-serif !important;
+}
+
+.overview .toplinksgithub a {
+  background: #d3d3d3;
+  font-size: 14px;
+  color: #1d87ae;
+  margin: 10px;
+  padding: 2px 10px;
+}
+
+.overview p {
+  margin: 6px auto !important;
+  padding: 0;
+}
+
+@media screen and (max-width: 660px) {
+  .overview p { max-width: none !important; }
+}
+
+.overview b {
+  font-weight: bolder;
+}
+
+.overview .kpi-hed {
+  font-weight: bold;
+  font-size: 20px;
+}
+
+.overview .kpi-box {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: space-around;
+  background: #ececec;
+  padding: 10px 0 !important;
+  margin: 5px 0 !important;
+  min-width: 180px;
+}
+
+.overview .kpi .num {
+  font-size: 40px;
+  line-height: 40px;
+  font-weight: bold;
+}
+
+.overview .kpi .grow {
+  line-height: 12px;
+  font-size: 12px;
+}
+
+.overview .table .change.pos , .overview .kpi .grow.pos {
+  color: #118822;
+}
+
+.overview .table .change.neg, .overview .kpi .grow, .color-neg {
+  color: #cc1100;
+}
+
+.overview p .color-neg {
+  background: #ececec;
+  padding: 0 5px;
+}
+
+.overview .kpi .kname {
+  font-size: 12px;
+}
+
+.overview .kpi-sm .kpi-hed {
+  font-size: 14px;
+  line-height: 10px;
+  padding-top: 3px !important;
+}
+
+.overview .kpi-sm .num {
+  font-size: 20px;
+  line-height: 20px;
+}
+
+.overview .kpi-sm .kname {
+  font-size: 11px;
+  line-height: 10px;
+}
+
+.overview .table {
+  border-collapse: collapse;
+  margin: auto !important;
+  text-align: right;
+  margin-top: 14px;
+  color: black;
+  font-size: 13px;
+  display: table !important;
+}
+
+.overview .table .change {
+  color: #999;
+  font-size: 80%;
+  text-align: start;
+  vertical-align: inherit;
+  font-weight: normal;
+  padding-left: 1px !important;
+}
+
+.overview .table th {
+  font-weight: normal;
+}
+.overview .table tbody tr {
+  border-bottom: 1px solid #eee;
+  background: none;
+}
+
+.overview .table td, .overview .table th {
+  padding: 1px 1px 1px 10px !important;
+  vertical-align: middle;
+  border: none;
+  background: none;
+}
+
+.overview .table th {
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.overview .table thead {
+  border-bottom: 1px solid black;
+}
+
+.overview .fs9 {
+  font-size: 9px;
+}
+
+.overview .d-flex {
+  display: flex;
+}
+
+.overview .text-center { text-align: center !important; }
+.overview .text-left { text-align: left !important; }
+.overview .text-right { text-align: right !important; }
+.overview .text-uppercase { text-transform: uppercase !important; }
+.overview div {
+  margin: 0 !important;
+  padding: 0 !important;
+  font-size: 13px
+}
+</style>

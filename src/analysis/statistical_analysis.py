@@ -8,14 +8,24 @@ from itertools import repeat
 from collections import OrderedDict
 from IPython.display import display, Markdown, HTML
 
+import matplotlib
+import matplotlib.pyplot as plt
+from termcolor import colored
+import seaborn as sns
+sns.set_context('talk')
+sns.set_style('white')
+
 import scipy.stats as stats
 import scipy.optimize
 import scipy.spatial
 from scipy.linalg import toeplitz
 from scipy.stats import ttest_ind, ttest_rel, ttest_1samp, chi2, chi2_contingency, t, sem, rankdata, norm, kurtosis
-from scipy.stats import shapiro, boxcox, levene
+from scipy.stats import shapiro, boxcox, levene, bartlett
+
+import statsmodels
 import statsmodels.api as sm
 from statsmodels.formula.api import ols
+from statsmodels.graphics.gofplots import qqplot
 
 from src.Config import Config
 
@@ -34,18 +44,9 @@ class Statistic_Analysis(Config):
         self.strings = strings
         self.y_var = y_var
 
-    
+
     @staticmethod
     def _kurt(x, normal=True):
-        n = x.shape[0]
-        m = np.mean(x)
-
-        kurt = np.sum(((x-m)**4.0 / n) / np.sqrt(np.var(x))**4.0) - (3.0 * normal)
-
-        return kurt
-
-
-    def kurtosis(self, x, axis=0):
         """Compute the kurtosis
 
         The kurtosis for a normal distribution is 3. For this reason, some sources use the following  
@@ -59,68 +60,91 @@ class Statistic_Analysis(Config):
 
         The :math:`-3` term is applied so a normal distribution will have a 0 kurtosis value (mesokurtic).  
 
-        Positive kurtosis indicates a "heavy-tailed" distribution and negative kurtosis indicates a "light-tailed" distribution.
+        Positive kurtosis indicates a "positively skewed" or "skewed right" and negative kurtosis indicates a "negatively skewed" or "skewed left".
 
         Parameters
         ----------
         x : array-like
             One or two-dimensional array of data.
-        axis : int {0, 1}
-            Specifies which axis of the data to compute the kurtosis. The default is 0 (column-wise in a 2d-array). Cannot
-            be greater than 1.
+        normal : boolean
+            Applying the data is normal distributed.
 
         Example
         -------
         >>> kurtosis([5, 2, 4, 5, 6, 2, 3])
         -1.4515532544378704
-        >>> kurtosis([[5, 2, 4, 5, 6, 2, 3], [4, 6, 4, 3, 2, 6, 7]], axis=1)
-        array([-1.45155325, -1.32230624])
 
         Returns
         -------
-        k : float or array-like
-            If x is one-dimensional, the kurtosis of the data is returned as a float. If x is two-dimensional, the
-            calculated kurtosis along the specified axis is returned as a numpy array of floats.
+        kurt : float
+            If kurt = 3, normally distributed
+            If kurt > 3, "positively skewed" or "skewed right"
+            If kurt < 0, "negatively skewed" or "skewed left"
         """
-        if axis > 1:
-            raise ValueError("axis must be 0 (row-wise) or 1 (column-wise)")
+        n = x.shape[0]
+        m = np.mean(x)
 
-        if not isinstance(x, np.ndarray):
-            raise ValueError("array cannot have more than two dimensions")
+        kurt = np.sum(((x-m)**4.0 / n) / np.sqrt(np.var(x))**4.0) - (3.0 * normal)
 
-        k = np.apply_along_axis(Statistic_Analysis._kurt(x), axis, x)
-
-        if k.shape == ():
-            k = float()
-
-        return k
+        return kurt
 
     
-    def qq_quantile_plot(self, data, var, title):
-        """Check for whether samples used in parametric test are in normally distributed using graphical method
+    @staticmethod
+    def chi_summary(description, alpha, var1, var2, contingency, dof, chi_statistic, p_value, summary):
+        test_results = {
+            "Test Description"  : description,
+            "Alpha"             : alpha,
+            "Variable 1"        : var1,
+            "Variable 2"        : var2,
+            "Contingency Table" : contingency,
+            "Degree of Freedom" : dof,
+            "Chi_Statistic"     : chi_statistic,
+            "P-Value"           : p_value,
+            "Summary"           : summary
+        } 
+        return test_results
 
-        We evaluate the normality of data using inference method:
-            - Graphical Method: Q-Q quantile plot
+    
+    @staticmethod
+    def ttest_summary(description, alpha, sample1, sample2, population, variance1, variance2, t_statistic, p_value, summary):
+        test_results = {
+            "Test Description"  : description,
+            "Alpha"             : alpha,
+            "Sample 1 Mean"     : sample1,
+            "Sample 2 Mean"     : sample2,
+            "Population Mean"   : population,
+            "Sample 1 Variance" : variance1,
+            "Sample 2 Variance" : variance2,
+            "T_Statistic"       : t_statistic,
+            "P-Value"           : p_value,
+            "Summary"           : summary
+        } 
+        return test_results
 
-        Q-Q quantile plot is a graphical technique for determining if two datasets come from sample populatons with a common distribution (normally distributed).  
-        The idealized samples are divided into groups called quantiles. Each data points in the sample is paired with a similar member from the idealized ditribution  
-        at the sample cumulative distribution. 
+    
+    @staticmethod
+    def anova_table(aov):
+        """Create `\eta^2` and `\omega^2` in ANOVA table
 
-        A perfect match for the ditribution will be shown by a line of dots on a 45-degree anfle from the bottom left of the plot to the top right.  
-        Deviation by the dots from the line shows a deviation from the expected distribution.
+        ANOVA table provides all the information one needs in order to interprete if the results are significant. 
+        However, it does not provide any effect size measures to tell if the statistical significance is meaningful.
 
-        Parameters
-        ----------
-        data : object
-            
+        `\eta^2` is the exact same thing as `R^2`, except when coming from the ANOVA framework, people call it `\eta^2`.
+        `\omega^2` is considered a better measure of effect size since it is unbiased in it's calculation by accounting for the degrees of freedom in the model.
+
+        Args:
+            aov (object): ANOVA table from OLS
+
+        Returns:
+            object: ANOVA table with `\eta^2` and `\omega^2` features
         """
-        sample_data = data[var]
+        aov['mean_sq'] = aov[:]['sum_sq']/aov[:]['df']
+        aov['eta_sq'] = aov[:-1]['sum_sq']/sum(aov['sum_sq'])
+        aov['omega_sq'] = (aov[:-1]['sum_sq']-(aov[:-1]['df']*aov['mean_sq'][-1]))/(sum(aov['sum_sq'])+aov['mean_sq'][-1])
 
-        fig, ax = plt.subplots(figsize=(8,6))
-        fig = qqplot(sample_data, line="s")
-        plt.title(title, weight="bold")
-        plt.show()
-        return fig
+        cols = ['sum_sq', 'df', 'mean_sq', 'F', 'PR(>F)', 'eta_sq', 'omega_sq']
+        aov = aov[cols]
+        return aov
 
     
     def shapiro_wilk_test(self, data, var=None):
@@ -192,7 +216,7 @@ d
         return sample_statistics
 
     
-    def levene_test(self, data, center=LEVENE_DISTRIBUTION, var=None):
+    def levene_test(self, data, center=Config.ANALYSIS_CONFIG["LEVENE_DISTRIBUTION"], var=None):
         """Check for homogeneity of variance between groups
 
         Levene's test is a statistical procedure for testing equality of variances (also sometimes called homoscedasticity or homogeneity of variances)  
@@ -232,7 +256,7 @@ d
         The way to perform homogeneity of variance test. We pass in an array from a datafrme based on the interested column to test on homogeneity of variance.
 
         >>> col1, col2, col3 = list(range(1, 100)), list(range(50, 78)), list(range(115, 139))
-        >>> wtest, p_value = leven(col1,col2,col3,center="mean")
+        >>> wtest, p_value = levene_test(col1, col2,col3, center="mean")
         >>> wtest = 0.0869
         >>> p_value = 0.934
         >>> Sample data does not look Gaussian (fail to reject H0)
@@ -250,7 +274,7 @@ d
             sample_data = data
             
         wtest, p_value = levene(sample_data, center=center)
-        if p_value > Config.ANALYSIS_CONFIG["TEST_ALPHA"]:
+        if p_value > self.ANALYSIS_CONFIG["TEST_ALPHA"]:
             info = "Samples have equal variance (fail to reject H0)"
         else:
             info = "At least one of the sample has different variance from the rest (reject H0)"
@@ -263,246 +287,238 @@ d
             }
         return sample_statistics
 
+    
+    def bartlett_test(self, data, var=None):
+        """Check for homogeneity of variance between groups, aside from Levene's test
 
-    def t_test(self, data, var, y1, y2=None, group=None, var_equal=True, paired=False, sample_size=self.ANALYSIS_CONFIG["SAMPLE_SIZE"]):
-        """T-Test on means  between samples
+        Bartlett's test, developed by Maurice Stevenson Bartlett, is a statistical procedure for testing if :math:`k` population samples have equal variances.
 
-        There are 2 type of T-tests, which is one sample T-Test or two sample T-Test. 
+        In general, Levene's test would be prefer as it is less sensitive to non-normal samples, comparing to Barlett's test. A keynote on words *homoscedasticity*,
+        which is also known as homogeneity of variances.
 
-        One Sample T-test is when when we are comparing the sample mean to a known mean like population mean. When we want to compare means between 2 samples,  
-        we use paired sample test. There are 2 types of paired sample test, one is comparing sample means coming from 2 different groups, known as  
-        Independent Paired Sample T-Test. On the other hand, when comparing 2 samples coming from same groups, we call it as Dependent Paired Sample T-Test.  
-        T-test is only applicable for 2 different samples only. 
+        Barlett's test is typically defined as :math:`X^2` value, where small value indicates that at least one sample has different variance compared to population  
+        (rejecting our null hypothesis).:math:`X^2` is defined as:
 
-        Null & Alternate hypothesis:
-            - :math:`H_0`: Means between 2 samples are the same
-            - :math:`H_1`: Means between 2 samples are not the same
+        .. math::
+            X^2 = \frac{(N-k)(\ln(S_{p}^2)) - \sum_{i=1}^k (N_i-1)(\ln(S_{i}^2)}{1 + (1/(3(k-1)))((\sum_{i=1}^k (1/(N_i-1)) - 1/(N-k))}
 
-        Assumptions in T-Test:
-            - Residuals (experimental error) are normally distributed (Shapiro Wilks Test)
-            - Homogeneity of variances (variances are equal between treatment groups) (Levene or Bartlett Test)
-            - Observations are sampled independently from each other
+        where:   
+        :math:`S_{i}^2` term is the variance of the ith groups
+        :math:`N` term is the total sample size
+        :math:`N_i` term is the sample size of the :math:`i-th` group
+        :math:`k` term is the number of groups
+        :math:`S_{p}^2` term is the pooled variance; :math:`S_{p}^2 = \sum_{i=1}^k(N_i-1)s_{i}^2 / (N-k)`
+
+        Null & Alternative hypothesis:
+            - :math:`H_0`: All of the :math:`k` sample populations have equal variances
+            - :math:`H_1`: At least one of the :math:`k` sample population variances are not equal
 
         Parameters
         ----------
         data : object
-            Dataframe to acquire the population mean and standard deviation for one-sample t-tests
-        var : string
-            Column name from dataframe for t-tests
-        y1 : array-like
-            One-dimensional array-like object (list, numpy array, pandas DataFrame or pandas Series) containing
-            the observed sample values.
-        y2 : array-like, optional
-            One-dimensional array-like object (list, numpy array, pandas DataFrame or pandas Series) containing
-            the observed sample values. Not necessary to include when performing one-sample t-tests.
-        group : array-like or None
-            The corresponding group vector denoting group sample membership. Will return :code:`None` if not passed.
-        var_equal : bool, optional
-            If True, the two samples are assumed to have equal variances and Student's t-test is performed.
-            Defaults to False, which performs Welch's t-test for unequal sample variances.
-        paired : bool, optional
-            If True, performs a paired t-test.
-
-        Raises
-        ------
-        ValueError
-            If :code:`paired` is True and a second sample, :code:`y2` is not passed.
-        ValueError
-            If :code:`paired` is True and the number of sample observations in :code:`y1` and :code:`y2` are not equal.
-
-        Notes
-        -----
-        Welch's t-test is an adaption of Student's t test and is more performant when the
-        sample variances and size are unequal. The test still depends on the assumption of
-        the underlying population distributions being normally distributed.
-        Welch's t test is defined as:
-
-        .. math::
-            t = \frac{\bar{X_1} - \bar{X_2}}{\sqrt{\frac{s_{1}^{2}}{N_1} + \frac{s_{2}^{2}}{N_2}}}
-
-        where:
-        :math:`\bar{X}` is the sample mean, :math:`s^2` is the sample variance, :math:`n` is the sample size
-        
-        If the :code:`var_equal` argument is True, Student's t-test is used, which assumes the two samples
-        have equal variance. The t statistic is computed as:
-
-        .. math::
-            t = \frac{\bar{X}_1 - \bar{X}_2}{s_p \sqrt{\frac{1}{n_1} + \frac{1}{n_2}}
-
-        where:
-
-        .. math::
-            s_p = \sqrt{\frac{(n_1 - 1)s^2_{X_1} + (n_2 - 1)s^2_{X_2}}{n_1 + n_2 - 2}
-
-        Examples
-        --------
-        Similar to other inference methods, there are generally two ways of performing a t-test. The first is to pass
-        a group vector with the :code:`group` parameter and the corresponding observation vector as below.
-        The data used in this example is a subset of the professor salary dataset found in Fox and
-        Weisberg (2011).
-        >>> professor_discipline = ['B', 'B', 'B', 'B', 'B',
-        ...                         'A', 'A', 'A', 'A', 'A']
-        >>> professor_salary = [139750, 173200, 79750, 11500, 141500,
-        ...                     103450, 124750, 137000, 89565, 102580]
-        >>> ttest = t_test(professor_salary, group=professor_discipline)
-        >>> print(ttest)
-            {'Sample 1 Mean': 111469.0,
-            'Sample 2 Mean': 109140.0,
-            'p-value': 0.9342936060799869,
-            't-statistic': 0.08695024086399619,
-            'test description': "Two-Sample Welch's t-test"}
-
-        The other approach is to pass each group sample vector similar to the below.
-        >>> sal_a = [139750, 173200, 79750, 11500, 141500]
-        >>> sal_b = [103450, 124750, 137000, 89565, 102580]
-        >>> ttest2 = t_test(sal_a, sal_b)
-        >>> print(ttest)
-            {'Sample 1 Mean': 109140.0,
-            'Sample 2 Mean': 111469.0,
-            'p-value': 0.9342936060799869,
-            't-statistic': -0.08695024086399619,
-            'test description': "Two-Sample Welch's t-test"}
-
-        Returns
-        -------
-        sample_statistics : dict
-            Dictionary contains the statistical analysis on t-tests
-        """
-        self.pop_mean = data[var].mean()
-        self.pop_std = data[var].std()
-
-        self.group = group
-        self.paired = paired
-
-        if self.paired and y2 is None:
-            self.log.error("Second sample is missing for paired T-Tests ...")
-
-        if var_equal:
-            self.method = "Student's T-Test"
-            self.var_equal = var_equal
-        else:
-            self.method = "Welch's T-Test"
-            self.var_equal = False
-
-        if self.paired == False and y2 is None:
-            test_description = "One Sample T-Test"
-            sample_1 = data.loc[(data[group]==y1) & (data[var].notnull())]
-            self.sample_1_mean = sample_1[var].mean()
-            self.sample_1_std = sample_1[var].std()
-            self.ttest, self.p_value = ttest_1samp(sample_1[var].values, popmean=self.pop_mean)
-            if p_value > Config.ANALYSIS_CONFIG["TEST_ALPHA"]:
-                self.info = "Accept null hypothesis that the means are equal between sample and population ... \
-                            Interpretation: The P-value obtained from 1-Sample T-Test analysis is not significant (P>0.05), \
-                            and therefore, we conclude that there are no significant differences between samples."
-            else:
-                self.info = "Reject null hypothesis that the means are equal between sample and population ... \
-                            Interpretation: The P-value obtained from 1-Sample T-Test analysis is significant (P<0.05), \
-                            and therefore, we conclude that there are significant differences between samples."
-            self.sample_statistics = {
-                "Test Description"      : "One-Sample T-Test",
-                "No. of Observations"   : int(len(sample_1)),
-                "Population Mean"       : self.pop_mean,
-                "Sample Mean"           : self.sample_1_mean,
-                "P-Value"               : self.p_value,
-                "T-Statistic"           : self.ttest, 
-                "Test Results"          : self.info
-            }
-
-        elif self.paired == True and y2 is not None:
-            sample_1 = data.loc[(data[group]==y1) & (data[group].notnull())]
-            sample_1 = sample_1.loc[sample_1[var].notnull()]
-            self.sample_1_mean = sample_1[var].mean()
-            self.sample_1_std = sample_1[var].std()
-
-            sample_2 = data.loc[(data[group]==y2) & (data[group].notnull())]
-            sample_2 = sample_2.loc[sample_2[var].notnull()]
-            self.sample_2_mean = sample_2[var].mean()
-            self.sample_2_std = sample_2[var].std()
-
-            sample_1, sample_2 = sample_1.sample(n=sample_size), sample_2.sample(n=sample_size)
-            if len(sample_1) != len(sample_2):
-                self.logger.error("Paired samples must have the same number of observations ...")
-
-            self.ttest, self.p_value = ttest_ind(sample_1[var], sample_2[var])
-            if p_value > Config.ANALYSIS_CONFIG["TEST_ALPHA"]:
-                self.info = "Accept null hypothesis that the means are equal between sample and population ... \
-                            Interpretation: The P-value obtained from 2-Sample T-Test analysis is not significant (P>0.05), \
-                            and therefore, we conclude that there are no significant differences between samples."
-            else:
-                self.info = "Reject null hypothesis that the means are equal between samples ... \
-                            Interpretation: The P-value obtained from 2-Sample T-Test analysis is significant (P<0.05), \
-                            and therefore, we conclude that there are significant differences between samples."
-            self.sample_statistics = {
-                "Test Description"      : "One-Sample T-Test",
-                "No. of Observations"   : int(len(sample_1)),
-                "Sample 1 Mean"         : self.sample_1_mean,
-                "Sample 2 Mean"         : self.sample_2_mean,
-                "P-Value"               : self.p_value,
-                "T-Statistic"           : self.ttest, 
-                "Test Results"          : self.info
-            }
-
-        return
-
-    
-    def anova(self, data, *args, y_var, type="one", var_equal=True):
-        """Analysis of variance on one independent variable
-
-        One-Way ANOVA is used to compare 2 means from 2 independent (unrelated) groups using F-distribution.  
-        With the null hypothesis for the test is that  2  means are equal. Therefore, a significant results means that the two means are unequal.
-
-        How ANOVA works:
-            - Check sample sizes: equal number of observations in each grou
-            - Calculate Mean Square (MS) for each group (Sum of Square of Group / DOG); DOF is degree of freedom for the samples
-            - Calculate the Mean Square Error (MSE) (Sum of Square of Error / DOF of residuals)
-            - Calculate the F-Value (MS of Group / Mean Square Error (MSE))
-
-        Null & Alternate hypothesis:
-            - :math:`H_0`: Groups means are equal (no variation in means of groups)
-            - :math:`H_1`: At least, one group mean is different from other groups
-
-        Assumptions in ANOVA:
-            - Residuals (experimental error) are normally distributed (Shapiro Wilks Test)
-            - Homogeneity of variances (variances are equal between treatment groups) (Levene or Bartlett Test)
-            - Observations are sampled independently from each other
+            Dataframe that has the interested column to be performed statistical analysis.
+        center : : {‘mean’, ‘median’, ‘trimmed’}, optional
+            Which function of the data to use in the test. The default is ‘median’.
+                - 'median' : Recommended for skewed (non-normal) distributions.
+                - 'mean' : : Recommended for symmetric, moderate-tailed distributions.
+                - 'trimmed' : Recommended for heavy-tailed distributions.
+        var : array-like, optional (default=None)
+            The sample data, possibly with different lengths.
+            If the input **data** is an array-like object, leave the option default (None).
 
         Example
         -------
+        The way to perform homogeneity of variance test. We pass in an array from a datafrme based on the interested column to test on homogeneity of variance.
 
+        >>> col1, col2, col3 = list(range(1, 100)), list(range(50, 78)), list(range(115, 139))
+        >>> wtest, p_value = bartlett_test(col1, col2, col3)
+        >>> wtest = 0.0869
+        >>> p_value = 0.934
+        >>> Sample data does not look Gaussian (fail to reject H0)
 
-        Return
-        ------
+        Returns
+        -------
+        wtest: float
+            X^2-statistics value from Bartlett's test
+        p_value: float
+            P-value for the test
         """
-        sample_data = data[var]
+        if var != None:
+            sample_data = data[var]
+        else:
+            sample_data = data
+            
+        wtest, p_value = bartlett(sample_data)
+        if p_value > self.ANALYSIS_CONFIG["TEST_ALPHA"]:
+            info = "Samples have equal variance (fail to reject H0)"
+        else:
+            info = "At least one of the sample has different variance from the rest (reject H0)"
 
-        if type == "one":
-            anova_model = ols('{y} ~ C({x})'.format(y=y_var, x=args), data=sample_data).fit()
-            self.anova_table = sm.stats.anova_lm(anova_model, typ=1)
-            if self.anova_table["PR(>F)"][0] > self.ANALYSIS_CONFIG["TEST_ALPHA"]:
-                self.info = "Accept null hypothesis that the means are equal between samples ... \
-                            Interpretation: The P-value obtained from One-Way ANOVA is not significant (P>0.05), \
-                            and therefore, we conclude that there are no significant differences between samples."
+        sample_statistics = {
+                "Test Description"      : "Bartlett's Test",
+                "P-Value"               : p_value,
+                "Levene's Statistic"    : wtest, 
+                "Test Results"          : info
+            }
+        return sample_statistics
+
+
+    def t_test(self, y1, y2=None, var=None, population=True, paired=False, alpha=0.05):  
+        if paired and y2 is None:
+            raise ValueError("Second sample is missing for paired test")
+            
+        if y2 is None and population is True:
+            sample_1            = y1.sample(1000)
+            test_description    = "One-Sample T-Test"
+            
+            s1_stat, s1_p_value = shapiro(sample_1[var])
+            if s1_p_value > alpha:
+                y1_value        = sample_1[var]
+                variance1       = "Sample 1 looks Gaussian (box-cox transformation is not performed)"
             else:
-                self.info = "Reject null hypothesis that the means are equal between samples ... \
-                            Interpretation: The P-value obtained from One-Way ANOVA is significant (P<0.05), \
-                            and therefore, we conclude that there are significant differences between samples."
-        elif type == "two":
-            anova_model = ols('{y} ~ C({x})'.format(y=y_var, x=var), data=sample_data).fit()
-            self.anova_table = sm.stats.anova_lm(anova_model, typ=1)
-            if self.anova_table["PR(>F)"][0] > self.ANALYSIS_CONFIG["TEST_ALPHA"]:
-                self.info = "Accept null hypothesis that the means are equal between samples ... \
-                            Interpretation: The P-value obtained from One-Way ANOVA is not significant (P>0.05), \
-                            and therefore, we conclude that there are no significant differences between samples."
+                y1_value        = boxcox(sample_1[var], 0)
+                variance1       = "Sample 1 do not looks Gaussian (box-cox transformation is performed)"
+                
+            y2_value            = None
+            variance2           = None
+            population_value    = y1[var].mean()
+            t_test, p_value     = ttest_1samp(y1_value, population_value)
+            interpretation      = f"Reject null hypothesis as p_value ({p_value}) < {alpha}" if p_value < 0.05 else f"Accept null hypothesis as p_value ({p_value}) >= {alpha}"
+            test_results        = self.ttest_summary(description=test_description, 
+                                                     alpha=alpha, 
+                                                     sample1=y1_value.mean(), 
+                                                     sample2=y2_value, 
+                                                     population=population_value, 
+                                                     variance1=variance1,
+                                                     variance2=variance2,
+                                                     t_statistic=t_test, 
+                                                     p_value=p_value, 
+                                                     summary=interpretation)
+            
+        elif (y2 is not None and var is not None) and paired == False:
+            sample_1            = y1.sample(1000)
+            sample_2            = y2.sample(1000)
+            test_description    = "Independent Samples T-Test"
+            
+            s1_stat, s1_p_value = shapiro(sample_1[var])
+            if s1_p_value > alpha:
+                y1_value        = sample_1[var]
+                variance1       = "Sample 1 looks Gaussian (box-cox transformation is not performed)"
             else:
-                self.info = "Reject null hypothesis that the means are equal between samples ... \
-                            Interpretation: The P-value obtained from One-Way ANOVA is significant (P<0.05), \
-                            and therefore, we conclude that there are significant differences between samples."
+                y1_value        = boxcox(sample_1[var], 0)
+                variance1       = "Sample 1 do not looks Gaussian (box-cox transformation is performed)"
+                
+            s2_stat, s2_p_value = shapiro(sample_2[var])
+            if s2_p_value > alpha:
+                y2_value        = sample_2[var]
+                variance2       = "Sample 2 looks Gaussian (box-cox transformation is not performed)"
+            else:
+                y2_value        = boxcox(sample_2[var], 0)
+                variance2       = "Sample 2 do not looks Gaussian (box-cox transformation is performed)"
+        
+            population_value    = None
+            t_test, p_value     = ttest_ind(y1_value, y2_value)
+            interpretation      = f"Reject null hypothesis as p_value ({p_value}) < {alpha}" if p_value < 0.05 else f"Accept null hypothesis as p_value ({p_value}) >= {alpha}"
+            test_results        = self.ttest_summary(description=test_description, 
+                                                     alpha=alpha, 
+                                                     sample1=y1_value.mean(), 
+                                                     sample2=y2_value.mean(), 
+                                                     population=population_value, 
+                                                     variance1=variance1,
+                                                     variance2=variance2,
+                                                     t_statistic=t_test, 
+                                                     p_value=p_value, 
+                                                     summary=interpretation)
+            
+        elif (y2 is not None and var is not None) and paired == True:
+            sample_1            = y1.sample(1000)
+            sample_2            = y2.sample(1000)
+            test_description    = "Paired Dependent Samples T-Test"
+            
+            s1_stat, s1_p_value = shapiro(sample_1[var])
+            if s1_p_value > alpha:
+                y1_value        = sample_1[var]
+                variance1       = "Sample 1 looks Gaussian (box-cox transformation is not performed)"
+            else:
+                y1_value        = boxcox(sample_1[var], 0)
+                variance1       = "Sample 1 do not looks Gaussian (box-cox transformation is performed)"
+                
+            s2_stat, s2_p_value = shapiro(sample_2[var])
+            if s2_p_value > alpha:
+                y2_value        = sample_2[var]
+                variance2       = "Sample 2 looks Gaussian (box-cox transformation is not performed)"
+            else:
+                y2_value        = boxcox(sample_2[var], 0)
+                variance2       = "Sample 2 do not looks Gaussian (box-cox transformation is performed)"
+        
+            population_value    = None
+            t_test, p_value     = ttest_rel(y1_value, y2_value)
+            interpretation      = f"Reject null hypothesis as p_value ({p_value}) < {alpha}" if p_value < 0.05 else f"Accept null hypothesis as p_value ({p_value}) >= {alpha}"
+            test_results        = self.ttest_summary(description=test_description, 
+                                                     alpha=alpha, 
+                                                     sample1=y1_value.mean(), 
+                                                     sample2=y2_value.mean(), 
+                                                     population=population_value, 
+                                                     variance1=variance1,
+                                                     variance2=variance2,
+                                                     t_statistic=t_test, 
+                                                     p_value=p_value, 
+                                                     summary=interpretation)
+
+        else:
+            self.logger.info("Failed to run test, please validate the input arguments")
+            
+        return test_results
 
 
-        return sample_df
+    def anova_test(self, df, var1, cat_var1, cat_var2=None, two_way=False, alpha=0.05):  
+        if cat_var2 is None and two_way is True:
+            raise ValueError("Second variable is missing for 2-way ANOVA test")
+            
+        if cat_var2 is None and two_way is False:
+            sample_df                   = df.sample(1000)
+            test_description            = "One-Sample T-Test"
+            model                       = ols(f'{var1} ~ C({cat_var1})', data=sample_df).fit()
+            aov_table                   = sm.stats.anova_lm(model, typ=2)
+            aov_table                   = self.anova_table(aov_table)
+            aov_table['description']    = test_description
+            p_value                     = aov_table['PR(>F)'][0]
+            interpretation = []
+            for row in aov_table.index:
+                if row == f'C({cat_var1})': 
+                    interpretation.append(f"Reject null hypothesis as p_value ({p_value}) < {alpha}" if p_value < 0.05 else f"Accept null hypothesis as p_value ({p_value}) >= {alpha}")
+                else:
+                    interpretation.append(np.nan)
+            aov_table['interpretation'] = interpretation
+            
+        elif cat_var2 is not None and two_way is True:
+            sample_df                   = df.sample(1000)
+            test_description            = "Two-Sample T-Test"
+            model                       = ols(f'{var1} ~ C({cat_var1}) + C({cat_var2}) + C({cat_var1}):C({cat_var2})', data=sample_df).fit()
+            aov_table                   = sm.stats.anova_lm(model, typ=2)
+            aov_table['description']    = test_description
+            p_value_1                   = aov_table['PR(>F)'][0]
+            p_value_2                   = aov_table['PR(>F)'][1]
+            p_value_3                   = aov_table['PR(>F)'][2]
+            interpretation = []
+            for row in aov_table.index:
+                if row == f'C({cat_var1})': 
+                    interpretation.append(f"Reject null hypothesis as p_value ({p_value_1}) < {alpha}" if p_value_1 < 0.05 else f"Accept null hypothesis as p_value ({p_value_1}) >= {alpha}")
+                elif row == f'C({cat_var2})':  
+                    interpretation.append(f"Reject null hypothesis as p_value ({p_value_2}) < {alpha}" if p_value_2 < 0.05 else f"Accept null hypothesis as p_value ({p_value_2}) >= {alpha}")
+                elif row == f'C({cat_var1}):C({cat_var2})':  
+                    interpretation.append(f"Reject null hypothesis as p_value ({p_value_3}) < {alpha}" if p_value_3 < 0.05 else f"Accept null hypothesis as p_value ({p_value_3}) >= {alpha}")
+                else:           
+                    interpretation.append(np.nan)
+            aov_table['interpretation'] = interpretation
+            
+        else:
+            logger.info("Failed to run test, please validate the input arguments")
+            
+        return aov_table
 
     
-    def chi_squared(self, data, y1, y2):
+    def chi_squared_test(self, df, var1, var2, alpha=Config.ANALYSIS_CONFIG["TEST_ALPHA"]):
         """Performs the Chi-square test of independence of variables
 
         Chi-Squared is to study the relationship between 2 categorical variables, to check is there any relationship between them.  
@@ -526,14 +542,16 @@ d
 
         Parameters
         ----------
-        data : object
+        df : object
             Dataframe that contain the categorical variables
-        y1 : array-like
+        var1 : array-like
             One-dimensional array-like object (list, numpy array, pandas DataFrame or pandas Series) containing
             the observed sample values.
-        y2 : array-like, optional
+        var2 : array-like, optional
             One-dimensional array-like object (list, numpy array, pandas DataFrame or pandas Series) containing
             the observed sample values.
+        alpha : float
+            Critical value for Chi-Squared test. The value can be found in Config file.
 
         Examples
         --------
@@ -548,68 +566,112 @@ d
 
         Returns
         -------
-        sample_statistics : dict
+        test_results : dict
             Dictionary contains the statistical analysis on chi-squared tests.
         """
-        self.count_data = pd.crosstab(data[y1], data[y2])
-    
-        observed_values = self.count_data.values
-        chi_val = stats.chi2_contingency(self.count_data)
-        expected_value = chi_val[3]
-        
-        no_of_rows = self.count_data.shape[0]
-        no_of_cols = self.count_data.shape[1]
-        dof = (no_of_rows-1) * (no_of_cols-1)
-        
-        chi_square = sum([(o-e)**2.0 / e for o, e in zip(observed_values, expected_value)])
-        self.chi_square_stat = chi_square[0] + chi_square[1]
-        self.p_value = 1-chi2.cdf(x=self.chi_square_statistic, df=dof)
-        if self.p_value > Config.ANALYSIS_CONFIG["TEST_ALPHA"]:
-            self.info = "Accept null hypothesis that there are no relationship between the categorical variables ... \
-                        Interpretation: The P-value obtained from Chi-Squared Test analysis is not significant (P>0.05), \
-                        and therefore, we conclude that there are no significant differences between samples."
+        if var2 is None:
+            raise ValueError("Chi Squared test require 2 categorical samples")
+            
+        if var1 is not None and var2 is not None:
+            sample                       = df.sample(self.ANALYSIS_CONFIG["SAMPLE_SIZE"])
+            test_description             = "Chi-Squared Test"
+            count_data                   = pd.crosstab(sample[var1], sample[var2])
+            observed_values              = count_data.values          
+            stat, p_value, dof, expected = stats.chi2_contingency(count_data)
+            interpretation               = f"Reject null hypothesis as p_value ({p_value}) < {alpha}" if p_value < 0.05 else f"Accept null hypothesis as p_value ({p_value}) >= {alpha}"
+            test_results                 = self.chi_summary(description=test_description, 
+                                                            alpha=alpha, 
+                                                            var1=var1, 
+                                                            var2=var2, 
+                                                            contingency=count_data, 
+                                                            dof=dof,
+                                                            chi_statistic=stat, 
+                                                            p_value=p_value, 
+                                                            summary=interpretation)
         else:
-            self.info = "Reject null hypothesis that there are no relationship between the categorical variables ... \
-                        Interpretation: The P-value obtained from 2-Sample T-Test analysis is significant (P<0.05), \
-                        and therefore, we conclude that there are significant differences between samples."
-        self.sample_statistics = {
-                "Test Description"      : "Chi-Squared Test",
-                "P-Value"               : self.p_value,
-                "T-Statistic"           : self.chi_square_stat, 
-                "Test Results"          : self.info
-            }
+            self.logger.info("Failed to run test, please validate the input arguments")
+            
+        return test_results
 
-        return
+    
+    def qq_quantile_plot(self, data, var, title):
+        """Check for whether samples used in parametric test are in normally distributed using graphical method
 
+        We evaluate the normality of data using inference method:
+            - Graphical Method: Q-Q quantile plot
 
-    @staticmethod
-    def _normalized(data, var):
-        """Normalize data distribution to normal distributed
+        Q-Q quantile plot is a graphical technique for determining if two datasets come from sample populatons with a common distribution (normally distributed).  
+        The idealized samples are divided into groups called quantiles. Each data points in the sample is paired with a similar member from the idealized ditribution  
+        at the sample cumulative distribution. 
 
-        Apply box-cox power transformation on dataset, transforming them into normally distribution. Box-cox transformation requires input data to be positive. 
-        When log transformation is applied to non-normal distribution data, it tries to expand the differences between smaller values because 
-        the slope for the logarithmic function is steeper for smaller values whereas the differences between larger values can be reduced 
-        because the log distribution for large values has a moderate slope.
-        
-        Box-cox transformation can be defined as:
+        A perfect match for the ditribution will be shown by a line of dots on a 45-degree anfle from the bottom left of the plot to the top right.  
+        Deviation by the dots from the line shows a deviation from the expected distribution.
 
-        .. math::
-            y(\lambda) = \left\{
-                \begin{array}\\
-                    (y^\lambda - 1) / \lambda & \mbox{if } \ \lambda \neq 0; \\
-                    log y & \mbox{if } \ \lambda = 0
-                \end{array}
-            \right.
+        Parameters
+        ----------
+        data : object
 
-        Box-cox transformation only cares about computing the value :math:`\lambda`, which varies from -5 to 5. 
-
-        Example
-        -------
-        
-        Return
+        Retuns
         ------
-
+        fig : QQ plot 
         """
-        boxcox_data, boxcox_lambda = boxcox(data[var])
+        sample_data = data[var]
 
-        return boxcox_data, boxcox_lambda
+        fig, ax = plt.subplots(figsize=(8,6))
+        fig = qqplot(sample_data, line="s")
+        plt.title(title, weight="bold")
+        plt.show()
+        return fig
+
+    
+    def dist_plot_2_vars(self, df, var, title, log=False, label1=None, label2=None):
+        fig, ax = plt.subplots(figsize=(20,6))
+        plt.suptitle(title, fontsize=18, weight='bold')
+
+        if log:
+            var1_log = [np.log(x) for x in df[df[var] == 1]['count']]
+            var2_log = [np.log(x) for x in df[df[var] == 0]['count']]
+        else:
+            var1_log = df[df[var] == 1]['count']
+            var2_log = df[df[var] == 0]['count']
+            plt.axvline(x=var1_log.mean(), label=f'{label1} Mean', color='orange', linestyle='--')
+            plt.axvline(x=var2_log.mean(), label=f'{label2} Mean', color='blue', linestyle='--')
+            plt.title('Mean of 1st Cond.: {:.2f};    Mean of 2nd Cond.: {:.2f}'.format(var1_log.mean(), var2_log.mean()))
+
+        sns.distplot(var1_log, label=label1, color='orange')
+        sns.distplot(var2_log, label=label2, color='blue')
+        plt.legend()
+        sns.despine()
+        
+        return fig
+
+    
+    def box_plot(self, df, xVar, yVar):
+        """Boxplot 
+
+        Detect the outliers of data across different groups
+
+        Parameters
+        ----------
+        df : str
+            Dataframe
+        xvar : str
+            Groups
+        yvar : str
+            Interested variable data 
+        
+        Returns
+        -------
+        fig : object
+            Vertical boxplot chart of each groups of data
+        """
+        fig, ax = plt.subplots(figsize=(20,5))
+
+        sns.boxplot(x=xVar, y=yVar, data=df, ax=ax)
+        plt.title('Boxplot of {}'.format(yVar), size = 14, weight='bold')
+        plt.xlabel('{}'.format(xVar), size = 12)
+        plt.xticks(rotation = 90)
+        plt.xticks(fontsize=14)
+        plt.yticks(fontsize=14)
+
+        return fig

@@ -42,9 +42,7 @@ customer_segmentation
 
 ## 1. About the Project
 With this transaction data with <font color='blue'>3 Million Instacart Orders</font>, let kick started on it:
-  - <b><u>RFM (Recency, Frequency, Monetory)</u></b>
   - <b><u>Market Basket Analysis</u></b>
-  - <b><u>Association Rule</u></b>
   - <b><u>Customer Segmentation (unsupervised learning)</u></b>
   - <b><u>Prediction of Next Product on User will Buy</u></b>
   
